@@ -10,6 +10,7 @@ import argparse
 import logging
 import subprocess
 from pathlib import Path
+from urllib.parse import urljoin
 from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError
 from tqdm import tqdm
 from multiprocessing.dummy import Pool as ThreadPool
@@ -327,11 +328,11 @@ def download(url: str):
         if MAX_DOWNLOAD_SPEED_MB is not None:
             process = subprocess.run([wget_path, '--progress=dot:giga', f'--limit-rate={MAX_DOWNLOAD_SPEED_MB}M',
                                       '--trust-server-names', url, f'-O{temp_fname}'],
-              stdout=subprocess.PIPE,
+              stdout=subprocess.PIPE, check=True,
               universal_newlines=True)
         else:
             process = subprocess.run([wget_path, '--progress=dot:giga', '--trust-server-names', url, f'-O{temp_fname}'],
-              stdout=subprocess.PIPE,
+              stdout=subprocess.PIPE, check=True,
               universal_newlines=True)
 
         logger.info(f'Rename the downloaded file {temp_fname} --> {fname}')
@@ -339,6 +340,7 @@ def download(url: str):
 
     except Exception as unknwErr:
         logger.error(f'Exception in download() func. Make sure wget is installed\n{unknwErr}')
+        raise
 
 
 def main_worker():
@@ -425,12 +427,12 @@ def main_worker():
                     if 'incremental' in path:
                         r = do_request(f'http://{rpc_node["snapshot_address"]}/incremental-snapshot.tar.bz2', method_='head', timeout_=2)
                         if 'location' in str(r.headers) and 'error' not in str(r.text):
-                            best_snapshot_node = f'http://{rpc_node["snapshot_address"]}{r.headers["location"]}'
+                            best_snapshot_node = urljoin(f'http://{rpc_node["snapshot_address"]}', r.headers["location"])
                         else:
-                            best_snapshot_node = f'http://{rpc_node["snapshot_address"]}{path}'
+                            best_snapshot_node = urljoin(f'http://{rpc_node["snapshot_address"]}', path)
 
                     else:
-                        best_snapshot_node = f'http://{rpc_node["snapshot_address"]}{path}'
+                        best_snapshot_node = urljoin(f'http://{rpc_node["snapshot_address"]}', path)
                     logger.info(f'Downloading {best_snapshot_node} snapshot to {SNAPSHOT_PATH}')
                     download(url=best_snapshot_node)
                 return 0
